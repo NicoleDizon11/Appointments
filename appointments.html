@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointment Calendar</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            background-color: #d7dadd;
+        }
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+        .day {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            border: 1px solid #dee2e6;
+            position: relative;
+        }
+        .day:hover {
+            background-color: #9cc0e4;
+        }
+        .appointment-summary {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #6c757d;
+            text-align: left;
+        }
+        .day-of-week {
+            background-color: #007bff;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .container-flex {
+            display: flex;
+            gap: 20px;
+        }
+        .queue-table {
+            width: 100%;
+            max-width: 300px;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .queue-table h3 {
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar nav bg-dark navbar-dark">
+        <div class="container my-3">
+            <span class="navbar-text mx-auto"><h1 class="text-center">Appointment Calendar</h1></span>
+        </div>
+    </nav>
+    <h1 class="text-center fw-bold text-info mt-3">September 2024</h1>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8 col-12 mb-3">
+                <div class="calendar" id="calendar">
+                    <!-- Days of the week will be generated here by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Queue table -->
+            <div class="col-md-4 col-12">
+                <div class="queue-table">
+                    <h3>Appointment Queue</h3>
+                    <table class="table table-striped" id="queueTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Disease</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Appointments will be dynamically inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Appointment Form -->
+    <div class="modal fade" id="appointmentModal" tabindex="-1" aria-labelledby="modalTitle" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Appointment for: </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="appointmentForm">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="contact" class="form-label">Contact</label>
+                            <input type="tel" class="form-control" id="contact" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="text" class="form-control" id="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="disease" class="form-label">Disease Category</label>
+                            <select class="form-select" id="disease" required>
+                                <option value="" disabled selected>Select your disease</option>
+                                <option value="Cardiovascular">Cardiovascular (Highest Priority)</option>
+                                <option value="Cancer">Cancer (High Priority)</option>
+                                <option value="Respiratory">Respiratory (High Priority)</option> 
+                                <option value="Gastrointestinal">Gastrointestinal(Medium Priority)</option>
+                                <option value="Diabetes">Diabetes(Medium Priority)</option>
+                                <option value="Skin">Skin Condition(Low Priority)</option>
+                                <option value="Orthopedic">Orthopedic(Low Priority)</option>
+                                <option value="Neurological">Neurological(Low to Medium Priority)</option>
+                                <option value="Infectious">Infectious Disease(Low Priority)</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="time" class="form-label">Time</label>
+                            <input type="time" class="form-control" id="time" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Save Appointment</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const calendar = document.getElementById('calendar');
+        const modal = new bootstrap.Modal(document.getElementById('appointmentModal'));
+        const appointmentForm = document.getElementById('appointmentForm');
+        const modalTitle = document.getElementById('modalTitle');
+        const queueTableBody = document.getElementById('queueTable').querySelector('tbody');
+        let selectedDay = null;
+        let editingAppointmentIndex = -1; // Keep track of editing appointment
+
+        const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+        const diseasePriority = {
+            "Cardiovascular": 1,
+            "Cancer": 1,
+            "Respiratory": 2,
+            "Gastrointestinal": 3,
+            "Diabetes": 3,
+            "Skin": 4,
+            "Orthopedic": 4,
+            "Neurological": 5,
+            "Infectious": 5,
+            "Other": 5
+        };
+
+        const generateDaysOfWeekHeader = () => {
+            daysOfWeek.forEach(day => {
+                const dayOfWeekElement = document.createElement('div');
+                dayOfWeekElement.classList.add('day-of-week');
+                dayOfWeekElement.innerText = day;
+                calendar.appendChild(dayOfWeekElement);
+            });
+        };
+
+        const generateCalendar = () => {
+            generateDaysOfWeekHeader();
+            for (let i = 1; i <= 30; i++) {
+                const dayElement = document.createElement('div');
+                dayElement.classList.add('day');
+                dayElement.innerText = i;
+                dayElement.onclick = () => openAppointmentForm(i);
+                
+                const existingAppointments = JSON.parse(sessionStorage.getItem(`appointmentsDay${i}`)) || [];
+                if (existingAppointments.length > 0) {
+                    existingAppointments.forEach((appointment, index) => {
+                        const appointmentSummary = document.createElement('div');
+                        appointmentSummary.classList.add('appointment-summary');
+                        const color = '#' + ((Math.random() * 0xffffff) << 0).toString(16);
+                        appointmentSummary.style.backgroundColor = color;
+                        appointmentSummary.style.color = (hexToRgb(color).r * 0.299 + hexToRgb(color).g * 0.587 + hexToRgb(color).b * 0.114) > 186 ? '#000000' : '#FFFFFF';
+                        appointmentSummary.innerHTML = `
+                            <span style="font-size: 10px;">${appointment.name}</span> (${appointment.time})
+                        `;
+                        
+                        function hexToRgb(hex) {
+                            var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                            return result ? {
+                                r: parseInt(result[1], 16),
+                                g: parseInt(result[2], 16),
+                                b: parseInt(result[3], 16)
+                            } : null;
+                        }
+                        appointmentSummary.onclick = (e) => {
+                            e.stopPropagation();
+                            openAppointmentDetails(i, index);
+                        };
+                        dayElement.appendChild(appointmentSummary);
+                    });
+                }
+
+                calendar.appendChild(dayElement);
+            }
+        };
+
+        const openAppointmentForm = (day) => {
+            selectedDay = day;
+            editingAppointmentIndex = -1;
+            modalTitle.innerText = `New Appointment for: Day ${day}`;
+            modal.show();
+            appointmentForm.reset();
+        };
+
+        const openAppointmentDetails = (day, index) => {
+            selectedDay = day;
+            editingAppointmentIndex = index;
+            const existingAppointments = JSON.parse(sessionStorage.getItem(`appointmentsDay${day}`));
+            const appointment = existingAppointments[index];
+
+            modalTitle.innerText = `Edit Appointment for: Day ${day}`;
+            document.getElementById('name').value = appointment.name;
+            document.getElementById('contact').value = appointment.contact;
+            document.getElementById('email').value = appointment.email;
+            document.getElementById('disease').value = appointment.disease;
+            document.getElementById('time').value = appointment.time;
+
+            modal.show();
+        };
+
+        appointmentForm.onsubmit = (e) => {
+            e.preventDefault();
+            const appointmentData = {
+                name: document.getElementById('name').value,
+                contact: document.getElementById('contact').value,
+                email: document.getElementById('email').value,
+                time: document.getElementById('time').value,
+                disease: document.getElementById('disease').value
+            };
+
+            const existingAppointments = JSON.parse(sessionStorage.getItem(`appointmentsDay${selectedDay}`)) || [];
+            if (editingAppointmentIndex >= 0) {
+                existingAppointments[editingAppointmentIndex] = appointmentData;
+            } else {
+                existingAppointments.push(appointmentData);
+            }
+
+            sessionStorage.setItem(`appointmentsDay${selectedDay}`, JSON.stringify(existingAppointments));
+            alert('Appointment saved!');
+            modal.hide();
+            updateCalendarDay(selectedDay);
+            updateQueueTable();
+        };
+
+        const updateCalendarDay = (day) => {
+            const dayElement = document.querySelector(`.day:nth-child(${day + 7})`);
+            dayElement.innerHTML = day; // Reset day content to day number
+            const existingAppointments = JSON.parse(sessionStorage.getItem(`appointmentsDay${day}`)) || [];
+            
+            existingAppointments.forEach((appointment, index) => {
+                const appointmentSummary = document.createElement('div');
+                appointmentSummary.classList.add('appointment-summary');
+                appointmentSummary.innerHTML = `<strong>${appointment.name}</strong> (${appointment.time})`;
+                appointmentSummary.onclick = (e) => {
+                    e.stopPropagation();
+                    openAppointmentDetails(day, index);
+                };
+                dayElement.appendChild(appointmentSummary);
+            });
+        };
+
+        const updateQueueTable = () => {
+            queueTableBody.innerHTML = '';
+            const allAppointments = [];
+            for (let i = 1; i <= 30; i++) {
+                const appointments = JSON.parse(sessionStorage.getItem(`appointmentsDay${i}`)) || [];
+                allAppointments.push(...appointments);
+            }
+
+            allAppointments.sort((a, b) => diseasePriority[a.disease] - diseasePriority[b.disease]);
+
+            allAppointments.forEach(appointment => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${appointment.name}</td><td>${appointment.disease}</td>`;
+                queueTableBody.appendChild(row);
+            });
+        };
+
+        generateCalendar();
+        updateQueueTable();
+    </script>
+</body>
+</html>
